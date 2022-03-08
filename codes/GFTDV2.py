@@ -7,7 +7,7 @@ import pandas as pd
 
 # 定义策略中需要用到的参数
 n1, n2, n3 = 4, 4, 4
-s = 0 # KDJ策略 阈值
+s = 0 
 
 # ------------ 函数定义 ----------------
 # 获取 价格关系比较结果 ud_i
@@ -97,9 +97,27 @@ def get_factor(data,n1,n2,n3):
     data['sell_n'] = (data['sell_count'].cumsum() - 1) // n3
     return data
 
-# TODO
+# 止损
 def get_stopprice(data):
-    pass
+    '''
+    Parameters
+        data     [dateframe]   因子数据（字段['factor']）此处factor含'buy_n','buy_sum'
+    Return
+        data     [dateframe]   止损价格数据（字段['buy_n','sell_n','buystop','sellstop']）
+    '''
+    # 考虑止损，生成买卖止损点
+    '''
+    止损点位为产生该信号的相应计数的形成周期内的市场 最低点【买入信号】或最高点【卖出信号】；
+    在市场未触及止损点之前，一直持有头寸，直到出现反向信号或者被迫止损为止。
+    '''
+    buy_stop = data[['open','buy_n']].groupby(['buy_n']).min()
+    buy_stop.rename(columns={'open':'buystop'},inplace=True)
+    buy_stop.reset_index(inplace=True)
+    sell_stop = data[['open','sell_n']].groupby(['sell_n']).max()
+    sell_stop.rename(columns={'open':'sellstop'},inplace=True)
+    sell_stop.reset_index(inplace=True)
+    stop_data = pd.concat([buy_stop, sell_stop],axis=1)#, keys=['buy', 'sell']),join='outer'
+    return stop_data
 
 # 生成买卖信号数据: 买入=1，卖出=-1；考虑 止损机制
 def get_trading_sig(data):
