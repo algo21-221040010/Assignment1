@@ -2,17 +2,46 @@
 复现《A股量化择时模型GFTD第二版》的止损部分
 """
 import numpy as np
+import pandas as pd
+
+
+# 止损价格
+def get_stopprice(data):
+    '''
+    Parameters
+        data     [dateframe]   因子数据（字段['factor']）此处factor含'buy_n','buy_sum'
+    Return
+        data     [dateframe]   止损价格数据（字段['buy_n','sell_n','buystop','sellstop']）
+    '''
+    # 考虑止损，生成买卖止损点
+    '''
+    止损点位为产生该信号的相应计数的形成周期内的市场 最低点【买入信号】或最高点【卖出信号】；
+    在市场未触及止损点之前，一直持有头寸，直到出现反向信号或者被迫止损为止。
+    '''
+    buy_stop = data[['open','buy_n']].groupby(['buy_n']).min()
+    buy_stop.rename(columns={'open':'buystop'}, inplace=True)
+    buy_stop.reset_index(inplace=True)
+    sell_stop = data[['open','sell_n']].groupby(['sell_n']).max()
+    sell_stop.rename(columns={'open':'sellstop'}, inplace=True)
+    sell_stop.reset_index(inplace=True)
+    stop_data = pd.concat([buy_stop, sell_stop], axis=1)#, keys=['buy', 'sell']),join='outer'
+    return stop_data
 
 
 # 调整 sig 数据，假设【不持有空头】&【止损机制】  
 def adjust_trading_sig_withStoploss(data, stop_data):
-    '''
-    Parameters
-        data [dateframe]    因子数据（字段['sig']）
-        data [dateframe]    止损价格数据（字段['buy_n','sell_n','buystop','sellstop']）
-    Return
-        data [dateframe]    信号数据（字段['sig','pos']）
-    '''
+    """_summary_
+
+    Args:
+        data (dateframe): 因子数据（字段['sig']）
+        stop_data (dateframe): 止损价格数据（字段['buy_n','sell_n','buystop','sellstop']）
+
+    Raises:
+        ValueError: number of signal is wrong
+
+    Returns:
+        dateframe: 信号数据（字段['sig','pos']）
+    """    
     ### 调整多空头: 不考虑空头，保证【多头、空头交错】
     buy_idx = data[ data.sig==1 ].index.tolist()
     sell_idx = data[ data.sig==-1 ].index.tolist()
@@ -21,34 +50,33 @@ def adjust_trading_sig_withStoploss(data, stop_data):
     sig_list = []
     sig_list.append(buy_sell_idx[0][0])
     i,j = 0,1
-    while i<len(buy_sell_idx[0]) and j< len(buy_sell_idx[1])+1:
+    while i<len(buy_sell_idx[0]) and j < len(buy_sell_idx[1])+1:
         # sell_index和 buy相比，大于则纳入sig
-        if len(sig_list)%2==1:
+        if len(sig_list)%2 == 1:
             if buy_sell_idx[1][i] > sig_list[-1]:
                 sig_list.append(buy_sell_idx[1][i])
                 i += 1
             elif buy_sell_idx[1][i] <= sig_list[-1]:
                 del buy_sell_idx[1][i]
         # buy_index和 sell相比，大于则纳入sig
-        elif len(sig_list)%2==0:
+        elif len(sig_list)%2 == 0:
             if buy_sell_idx[0][j]>sig_list[-1]:
                 sig_list.append(buy_sell_idx[0][j])
                 j += 1
             elif buy_sell_idx[0][j]<=sig_list[-1]:
                 del buy_sell_idx[0][j]
         else:
-            raise ValueError('')
+            raise ValueError('number of signal is wrong')
     
     # 若结果sell/buy有多，截取
     if len(buy_sell_idx[0])<len(buy_sell_idx[1]):
         buy_sell_idx[1] = buy_sell_idx[1][:len(buy_sell_idx[0])]
-        print('减去了sell')
+        # print('减去了sell')
     elif len(buy_sell_idx[0])>len(buy_sell_idx[1]):        
         buy_sell_idx[0] = buy_sell_idx[0][:len(buy_sell_idx[1])]
-        print('减去了buy')
-    print('\n','#'*8, len(buy_sell_idx[0]), len(buy_sell_idx[1]))
-    print(buy_sell_idx[0], buy_sell_idx[1])
-    print('????????????????')
+        # print('减去了buy')
+    # print('\n','#'*8, len(buy_sell_idx[0]), len(buy_sell_idx[1]))
+    # print(buy_sell_idx[0], buy_sell_idx[1])
 
     ### 止损机制
         # 买入信号，若price达到止损点，卖出平仓；否则，等到卖出信号再平仓。
