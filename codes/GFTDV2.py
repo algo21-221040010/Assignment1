@@ -1,9 +1,12 @@
 '''
-复刻研报《A股量化择时模型GFTD第二版》
+复现研报《A股量化择时模型GFTD第二版》中的因子
 '''
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
+from data_handle import *
+from stop_loss import *
 
 # 定义策略中需要用到的参数
 n1, n2, n3 = 4, 4, 4
@@ -11,7 +14,7 @@ s = 0
 
 # ------------ 函数定义 ----------------
 # 获取 价格关系比较结果 ud_i
-def get_ud(data,n1):
+def get_ud(data, n1):
     # 求变化量 Δx = x(t) - x(t-1)
     data['close-n1'] = data['close'].shift(n1)
     data['ud'] = data.apply(lambda x:1 if x['close']-x['close-n1']>0 else(-1 
@@ -19,10 +22,11 @@ def get_ud(data,n1):
     #print('!'*80)
     #print(data[['date_time','close','close-n1','ud']])
     data.drop(['close-n1'], axis=1,inplace=True)
+    print(data[['ud']])
     return data
 
 # 判断 买入启动/卖出启动
-def get_factor(data,n1,n2,n3):
+def get_factor(data, n1, n2, n3):
     '''
     Parameters
         data     [dateframe]   因子数据（字段['factor']）
@@ -76,7 +80,7 @@ def get_factor(data,n1,n2,n3):
 
     for i in range(len(sell_start_idx)):
         n = sell_start_idx[i]
-        if i<len(sell_start_idx)-1:
+        if i < len(sell_start_idx) - 1:
             m = sell_start_idx[i+1]
         else:
             m = data.shape[0]
@@ -86,7 +90,7 @@ def get_factor(data,n1,n2,n3):
             n += 1
             if data['close'].iloc[n] >= data['low'].iloc[n-2] and \
                     data['low'].iloc[n] >= data['low'].iloc[n-1] and \
-                    (len(sell_count_index)==0 or data['close'].iloc[n] >= data['close'].iloc[ sell_count_index[-1] ]):
+                    (len(sell_count_index) == 0 or data['close'].iloc[n] >= data['close'].iloc[ sell_count_index[-1] ]):
                 data['sell_count'].iloc[n] = 1
                 sell_count_index.append(n)
     # 买卖计数累加
@@ -95,6 +99,7 @@ def get_factor(data,n1,n2,n3):
     # 使得计数累加为 1，2，3，4的都属于一个buy_n
     data['buy_n'] = (data['buy_count'].cumsum() - 1) // n3
     data['sell_n'] = (data['sell_count'].cumsum() - 1) // n3
+    print(data[['sum_ud', 'buy_n', 'sell_n']])
     return data
 
 # 止损
@@ -111,12 +116,12 @@ def get_stopprice(data):
     在市场未触及止损点之前，一直持有头寸，直到出现反向信号或者被迫止损为止。
     '''
     buy_stop = data[['open','buy_n']].groupby(['buy_n']).min()
-    buy_stop.rename(columns={'open':'buystop'},inplace=True)
+    buy_stop.rename(columns={'open':'buystop'}, inplace=True)
     buy_stop.reset_index(inplace=True)
     sell_stop = data[['open','sell_n']].groupby(['sell_n']).max()
-    sell_stop.rename(columns={'open':'sellstop'},inplace=True)
+    sell_stop.rename(columns={'open':'sellstop'}, inplace=True)
     sell_stop.reset_index(inplace=True)
-    stop_data = pd.concat([buy_stop, sell_stop],axis=1)#, keys=['buy', 'sell']),join='outer'
+    stop_data = pd.concat([buy_stop, sell_stop], axis=1)#, keys=['buy', 'sell']),join='outer'
     return stop_data
 
 # 生成买卖信号数据: 买入=1，卖出=-1；考虑 止损机制
@@ -137,12 +142,53 @@ def get_trading_sig(data):
     stop_data = get_stopprice(data)
     return data
 
+# 绘制买卖信号图，输入【sig数据，加日期】
+def draw_trade_sig(sig_data, result_path=None, startdt=0, enddt=20400000):
+    '''
+    Parameters
+        - sig_data        [dataframe]    原始数据（字段['date_time','date','open','sig'])
+        - result_path     [str]          图片存储路径
+        - startdt, enddt  [int]          时间区间的始末
+    '''
+    data = sig_data[ (sig_data.date>=int(startdt)) & (sig_data.date<=int(enddt)) ]
+    data.set_index(['date_time'], inplace=True)
+    buy_idx = list(data[ data.sig==1 ].index)
+    sell_idx = list(data[ data.sig==-1 ].index)
+    plt.figure(figsize=(16, 8))
+    plt.plot(data['open'],label="open price",color='k',linewidth=1)
+    plt.plot(data['open'][buy_idx],'^',color='red',label="buy", markersize=8)
+    plt.plot(data['open'][sell_idx],'gv',label="sell", markersize=8)
+    plt.legend(loc=1)
+    plt.show()
+    # plt.savefig(result_path+"trading_sig.png")
+    plt.close()
 
 if __name__ == '__main__':    
-    # 导入 数据
-    info_filename = 'data//IC_info.csv'
-    info_data = pd.read_csv(info_filename, header = 0)
+    # # 导入 数据
+    # info_filename = 'data//IC_info.csv'
+    # info_data = pd.read_csv(info_filename, header = 0)
     
-    filename = 'data//cf_kline//IC_1_min.csv'
-    data = pd.read_csv(filename, header = 0)
-    
+    # filename = 'data//IC_1_min.csv'
+    # data = pd.read_csv(filename, header = 0)
+
+    # 获取 复权数据
+    d = GetData()
+    data = d.run()
+
+    time_freq_list = [1, 5, 15, 30, 60, 240]
+
+    for time_freq in time_freq_list[1:4]:
+        print(time_freq)
+        data = transfer_timeFreq(data, time_freq, ic_multi=200)  # get_newFreq_datetime()        
+
+        # 生成 指标
+        data_factor = get_factor(data, n1, n2, n3) #.reset_index()
+        ### 获取买卖信号
+        data_factor = data_factor.reset_index()
+        data_sig = get_trading_sig(data_factor)
+        data_sig.rename(columns={'ud':'factor'},inplace=True)
+
+        # 获取 买卖信号数据
+        data_sig = get_trading_sig(data_factor)
+        print(data_sig)
+        draw_trade_sig(data_sig)

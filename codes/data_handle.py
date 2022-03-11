@@ -1,3 +1,6 @@
+"""
+导入数据 并 
+"""
 import numpy as np
 import pandas as pd
 import datetime
@@ -23,7 +26,7 @@ def transfer_timeFreq(ori_data, time_freq, ic_multi=200):
     last_close = grouped['close','io'].nth(-1)
     get_sum = grouped[['all_volume','all_turnover']].sum()
     # 数据合并
-    data_list = [get_lastday,max_high,min_low,last_close,get_sum]
+    data_list = [get_lastday, max_high, min_low, last_close, get_sum]
     temp = pd.concat(data_list,axis=1)
     data_newfreq = temp.reset_index()
     data_newfreq['preclose'] = data_newfreq['close'].shift(-1)
@@ -34,31 +37,74 @@ def transfer_timeFreq(ori_data, time_freq, ic_multi=200):
 
     #### 若交易量为 0 （数据缺失或触发了熔断），删除数据
     nan_vloume_date = list(set(data_newfreq[data_newfreq['all_volume']==0].date))
-    data_newfreq.drop( data_newfreq[data_newfreq.date.isin(nan_vloume_date)].index , inplace=True)
+    data_newfreq.drop(data_newfreq[data_newfreq.date.isin(nan_vloume_date)].index , inplace=True)
     # 重设连续index
     data_newfreq.index = (range(data_newfreq.shape[0]))
     return data_newfreq
 
 
-# 获得转换时间频率后的 datetime数据（日期+时间型）
-def get_newFreq_datetime(data_newfreq):
-    try: 
-        data_newfreq['date_time'] = data_newfreq.apply(lambda x:datetime.datetime.strptime\
-            (str(int(x['date']))+' '+str(int(x['time']))[:-5],'%Y%m%d %H%M'), axis=1) 
-    except KeyError: # 若报错，一般为缺乏 'time' 字段
-        data_newfreq['date_time'] = data_newfreq.apply(lambda x:datetime.datetime.strptime\
-            (str(int(x['date']))+' '+str(1500),'%Y%m%d %H%M'), axis=1) 
-    
-    return data_newfreq
 
-# 给价格后复权，并保留未复权价格：后复权价 = 价格*后复权因子
-def get_fuquan_data(data):
-    '''
-    Parameters
-        data [dataframe]    数据(字段['factor'（复权因子）,'high','low','open','close'])
-    '''
-    col_list = ['high','low','open','close']
-    for i in col_list:
-        data['fq_'+ i] = np.multiply(data[i], data['factor'])
-    data.drop(['factor'], axis=1, inplace=True) # 后面的因子也取名叫factor
-    return data
+
+class GetData():
+    def __init__(self, future='IC', time_frequency=240) -> None:
+        self.future = future
+        self.time_frequency = time_frequency
+        # 直接 cd 路径，不用内部限死 self.path
+        self.future_data = pd.read_csv('data//IC_1_min.csv', header=0, index_col=0)
+        self.factor_data = pd.read_csv('data//IC_info.csv', header=0, index_col=0)[['date', 'factor']]
+
+    def __str__(self) -> str:
+        param_list = ['future', 'time_frequency']
+        value = [(name, getattr(self, name)) for name in param_list]
+        f_string = ''
+        for i, (item, count) in enumerate(value):
+            f_string += (f'#{i+1}: '
+                         f'{item.title():<10s} = '
+                         f'{count}\n')
+        return f_string
+    
+    def get_date_time(self, data, daily=False):
+        """获取 datetime类型数据
+
+        Args:
+            data (dataframe): 期权行情数据，含字段['date',('time')]
+            daily (bool, optional): _description_. Defaults to False.
+
+        Raises:
+            TypeError: Unvaild value for "time_frequency"!
+
+        Returns:
+            datetime: 一列数据
+        """        
+        if self.time_frequency == 240 or daily: # 无 'time' 字段
+            return data.apply(lambda x:datetime.datetime.strptime(str(int(x['date']))\
+                    +' '+str(1500),'%Y%m%d %H%M'), axis=1) 
+        elif self.time_frequency < 240:
+            return data.apply(lambda x:datetime.datetime.strptime(str(int(x['date']))\
+                    +' '+str(int(x['time']))[:-5],'%Y%m%d %H%M'), axis=1)
+        else: 
+            raise TypeError('Unvaild value for "time_frequency"!')
+    
+    # 获取 复权价格数据，后续要存储起来
+    def get_refactor_price(self):
+        """获取 复权后的期货数据
+
+        Returns:
+            dataframe: 复权后的期货数据 含字段['r_high', 'r_low', 'r_open', 'r_close']
+        """        
+        self.data = pd.merge(self.future_data, self.factor_data, on='date')
+        # 复权
+        col_list = ['high','low','open','close']
+        for i in col_list:
+            self.data['r_'+ i] = np.multiply(self.data[i], self.data['factor'])
+        return self.data
+
+    def run(self):
+        self.future_data['date_time'] = self.get_date_time(self.future_data) # 计算因子需要
+        option_data = self.get_refactor_price()
+        return option_data
+
+if __name__ == '__main__': 
+    d = GetData()
+    data = d.run()
+    print(data)

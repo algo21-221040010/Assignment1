@@ -1,5 +1,7 @@
+"""
+复现《A股量化择时模型GFTD第二版》的止损部分
+"""
 import numpy as np
-import pandas as pd
 
 
 # 调整 sig 数据，假设【不持有空头】&【止损机制】  
