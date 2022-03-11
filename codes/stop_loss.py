@@ -7,17 +7,16 @@ import pandas as pd
 
 # 止损价格
 def get_stopprice(data):
-    '''
-    Parameters
-        data     [dateframe]   因子数据（字段['factor']）此处factor含'buy_n','buy_sum'
-    Return
-        data     [dateframe]   止损价格数据（字段['buy_n','sell_n','buystop','sellstop']）
-    '''
-    # 考虑止损，生成买卖止损点
-    '''
-    止损点位为产生该信号的相应计数的形成周期内的市场 最低点【买入信号】或最高点【卖出信号】；
-    在市场未触及止损点之前，一直持有头寸，直到出现反向信号或者被迫止损为止。
-    '''
+    """计算止损价格，生成买卖止损点
+
+    Args:
+        data (dateframe): 因子数据（字段['factor']）此处factor含'buy_n','buy_sum'
+
+    Returns:
+        dateframe: 止损价格数据（字段['buy_n','sell_n','buystop','sellstop']）
+    """   
+    # 止损点位为产生该信号的相应计数的形成周期内的市场 最低点【买入信号】或最高点【卖出信号】；
+    # 在市场未触及止损点之前，一直持有头寸，直到出现反向信号或者被迫止损为止。
     buy_stop = data[['open','buy_n']].groupby(['buy_n']).min()
     buy_stop.rename(columns={'open':'buystop'}, inplace=True)
     buy_stop.reset_index(inplace=True)
@@ -30,7 +29,7 @@ def get_stopprice(data):
 
 # 调整 sig 数据，假设【不持有空头】&【止损机制】  
 def adjust_trading_sig_withStoploss(data, stop_data):
-    """_summary_
+    """调整 sig 数据，假设【不持有空头】&【止损机制】  
 
     Args:
         data (dateframe): 因子数据（字段['sig']）

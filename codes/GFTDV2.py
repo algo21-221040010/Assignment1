@@ -11,7 +11,7 @@ from data_handle import *
 from stop_loss import *
 
 
-# ------------ 函数定义 ----------------
+
 # 获取 价格关系比较结果 ud_i
 def get_ud(data, n1):
     # 求变化量 Δx = x(t) - x(t-1)
@@ -26,7 +26,7 @@ def get_ud(data, n1):
 
 # 判断 买入启动/卖出启动
 def get_factor(data, n1, n2, n3):
-    """获取因子
+    """计算因子
 
     Args:
         data (dateframe): 因子数据（字段['factor']）
@@ -120,7 +120,6 @@ def get_trading_sig(data):
     data['sig'] = data.apply(lambda x:1 if (x['buy_sum']==0) else(
         -1 if (x['sell_sum']==0) else 0), axis=1)
     
-    # TODO 考虑止损（无卖空）
     # 在买入卖出信号之间，若price达止损点，则止损点变为卖出点
     stop_data = get_stopprice(data)
     data = adjust_trading_sig_withStoploss(data, stop_data)
@@ -146,8 +145,8 @@ def draw_trade_sig(sig_data, time_freq, startdt=20120000, enddt=20220000):
     plt.plot(data['open'][sell_idx],'gv',label="sell", markersize=8)
     plt.legend()
     plt.grid(True)
-    # plt.show()
-    plt.savefig(r"data\result_data\{}_min_trading_sig.png".format(time_freq))
+    plt.show()
+    # plt.savefig(r"data\result_data\{}_min_trading_sig.png".format(time_freq))
     plt.close()
 
 if __name__ == '__main__':    
@@ -159,10 +158,11 @@ if __name__ == '__main__':
     d = GetData()
     data = d.run()
 
-    time_freq_list = [1, 5, 30, 60, 240]
-    for time_freq in time_freq_list[1:4]:
-        data = transfer_timeFreq(data, time_freq, ic_multiplier=200)  # get_newFreq_datetime()        
-
+    # 在不通的时间频率下 计算因子并获得交易信号
+    time_freq_list = [1, 5, 15, 30, 60, 240]
+    for time_freq in time_freq_list[2:3]:
+        # 转换 时间频率
+        data = transfer_timeFreq(data, time_freq, ic_multiplier=200)
         # 生成 指标
         data_factor = get_factor(data, n1, n2, n3) #.reset_index()
         ### 获取买卖信号
@@ -172,5 +172,6 @@ if __name__ == '__main__':
 
         # 获取 买卖信号数据
         data_sig = get_trading_sig(data_factor)
+        data_sig.to_csv(r'data\result_data\{}min_signal.csv'.format(time_freq))
         print(data_sig)
-        draw_trade_sig(data_sig)
+        draw_trade_sig(data_sig, time_freq)

@@ -11,10 +11,11 @@ s = 0
 d = GetData()
 data = d.run()
 
-time_freq_list = [1, 5, 30, 60, 240]
-for time_freq in time_freq_list:
-    data = transfer_timeFreq(data, time_freq, ic_multiplier=200)  # get_newFreq_datetime()        
-
+# 在不通的时间频率下 计算因子并获得交易信号
+time_freq_list = [1, 5, 15, 30, 60, 240]
+for time_freq in time_freq_list[2:3]:
+    # 转换 时间频率
+    data = transfer_timeFreq(data, time_freq, ic_multiplier=200)
     # 生成 指标
     data_factor = get_factor(data, n1, n2, n3) #.reset_index()
     ### 获取买卖信号

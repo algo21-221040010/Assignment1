@@ -10,9 +10,6 @@ class GetData():
     def __init__(self, future='IC', time_frequency=240) -> None:
         self.future = future
         self.time_frequency = time_frequency
-        # 直接 cd 路径，不用内部限死 self.path
-        self.future_data = pd.read_csv('data\IC_1_min.csv', header=0, index_col=0)
-        self.factor_data = pd.read_csv('data\IC_info.csv', header=0, index_col=0)[['date', 'factor']]
 
     def __str__(self) -> str:
         param_list = ['future', 'time_frequency']
@@ -23,6 +20,10 @@ class GetData():
                          f'{item.title():<10s} = '
                          f'{count}\n')
         return f_string
+    
+    def read_data(self):
+        self.future_data = pd.read_csv('data\IC_1_min.csv', header=0, index_col=0)
+        self.factor_data = pd.read_csv('data\IC_info.csv', header=0, index_col=0)[['date', 'factor']]
     
     @staticmethod
     def get_date_time(data, time_frequency=240):
@@ -47,7 +48,7 @@ class GetData():
         else: 
             raise TypeError('Unvaild value for "time_frequency"!')
     
-    # 获取 复权价格数据，后续要存储起来
+    # 获取 复权价格数据
     def get_refactor_price(self):
         """获取 复权后的期货数据
 
@@ -62,6 +63,7 @@ class GetData():
         return self.data
 
     def run(self):
+        self.read_data()
         self.future_data['date_time'] = self.get_date_time(self.future_data) # 计算因子需要
         option_data = self.get_refactor_price()
         return option_data
@@ -70,12 +72,16 @@ class GetData():
 
 # 转换数据 时间频率
 def transfer_timeFreq(ori_data, time_freq, ic_multiplier=200):
-    '''
-    Parameters
-        ori_data  [dataframe]    原始数据（字段[ ])
-        time_freq [int]          时间频率（单位：分钟）
-        ic_multiplier  [int]          ic乘数（分钟内均价 turnover/volume，需要除ic乘数）
-    '''
+    """转换数据 时间频率
+
+    Args:
+        ori_data (dataframe): 原始数据
+        time_freq (int): 时间频率（单位：分钟）
+        ic_multiplier (int, optional): ic乘数，1份IC合约是200点. Defaults to 200.
+
+    Returns:
+        dataframe: 转换时间频率后的数据
+    """    
     if time_freq==1:
         return ori_data
     ori_data.reset_index(inplace=True)
@@ -101,7 +107,8 @@ def transfer_timeFreq(ori_data, time_freq, ic_multiplier=200):
     data_newfreq.drop(data_newfreq[data_newfreq.date.isin(nan_vloume_date)].index , inplace=True)
     # 重设连续index
     data_newfreq.index = (range(data_newfreq.shape[0]))
-    data_newfreq['date_time'] = GetData().get_date_time(data_newfreq['date_time'])
+    # 更新 datetime数据
+    data_newfreq['date_time'] = GetData().get_date_time(data_newfreq)
     return data_newfreq
 
 
