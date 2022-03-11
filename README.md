@@ -10,9 +10,7 @@ There are 3 folders in this repository
   - 'GFTDV2.py' which calculates the factor ***GFTDV2***, generates the trading signal and mark the signals in pictures which can be found in the 'data\result_data' folder. 
   - 'main.py' , run this file and you can get the trading signal of our strategy.
 - ii. 'research_paper' contains the pdf file of this paper.
-- iii. 'data' folder contains all data we needed.
+- iii. 'data' folder contains:
   - input data: market data of CSI 500 index future (IC)
-  - 'result_data' folder: contains the csv files which stores the trading signal of this strategy, as well as the pictures of it.
-
-
-
+  - 'result_data' folder: contains the csv files which stores the trading signal of this strategy, as well as the pictures of it (see as follows).
+![trading signal](data/result_data/15_min_trading_sig.png)
